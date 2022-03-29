@@ -8,13 +8,13 @@
 
 #define UDP_CONFIG_PORT 58911
 #define UDP_CLIENT_PORT 58001
-#define PROG_VERSION "2.1"
+#define PROG_VERSION "2.2"
 
 char ssid[32] = "";
 char password[64] = "";
 
 // пожалуйста используйте свой сервер для отправки данных
-char Server_IP[16] = "127.0.0.1";
+char Server_IP[16] = "62.173.140.213";
 uint16_t Server_Port = 58032;
 
 uint16_t Sleep_TIME = 600;    // время между отправкой сообщений в секундах
@@ -49,6 +49,7 @@ char UDP_MSG[255] = "";
 char b64msg[256] = "";
 
 boolean Error_mode = false;
+//boolean Led_On = false;
 
 void Error_Mode() {
   timeout = 0;
@@ -193,6 +194,7 @@ void Device_Config() {
   WiFi.softAP(ssid_ap);
 
   Udp.begin(UDP_CONFIG_PORT);
+  digitalWrite(LED_BUILTIN, LOW);  // Зажигаем светодиод, показывая что мы в режиме конфигурации
 
   uint32_t start_conf_time = millis();
   // Псевдо loop цикл для обработки принятых UDP пакетов
@@ -287,6 +289,7 @@ void Device_Config() {
 
   // Записываем конфигурацию
   SaveConfig();
+  delay(1000);
 
   // В конце конфигурации перегружаем ESP'ку
   ESP.reset();
@@ -330,7 +333,9 @@ boolean WiFireconnect() {
 
   timeout = 0;
   while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_BUILTIN, LOW);  // Быстро мигаем светодиодом оповещая что мы соединяемся
     delay(500);
+    digitalWrite(LED_BUILTIN, HIGH);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
 
     if(timeout > 1200) {     // в течении 10 минут не смогли подключиться к WIFI сети, ошибка конфигурации?
       Serial.println("Failed reconnect to WiFi network. BUG?");
@@ -338,6 +343,7 @@ boolean WiFireconnect() {
     }
     timeout++;
   }
+  digitalWrite(LED_BUILTIN, LOW);  // ...
   return true;
 }
 
@@ -349,7 +355,9 @@ void WiFiconnect() {
 
   timeout = 0;
   while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_BUILTIN, LOW);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
     delay(500);
+    digitalWrite(LED_BUILTIN, HIGH);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
 
     if(timeout > 600) {     // в течении 5 минут не смогли подключиться к WIFI сети, ошибка конфигурации?
       Serial.println("Failed to connect to WiFi network. Going to Config Mode.");
@@ -357,6 +365,7 @@ void WiFiconnect() {
     }
     timeout++;
   }
+  digitalWrite(LED_BUILTIN, LOW);  // ...
 }
 
 void setup() {
@@ -366,13 +375,18 @@ pinMode(LED_BUILTIN, OUTPUT);
 Serial.begin(115200);
 //delay(5000);
 
+  digitalWrite(LED_BUILTIN, LOW);  // Зажигаем
   delay(1000);
   Serial.println("3");
+  analogWrite(LED_BUILTIN, 64);
   delay(1000);
   Serial.println("2");
+  analogWrite(LED_BUILTIN, 128);
   delay(1000);
   Serial.println("1");
+  analogWrite(LED_BUILTIN, 192);
   delay(1000);
+  digitalWrite(LED_BUILTIN, HIGH);  // Гасим
 
 // Получаем свой MAC address
 WiFi.macAddress(local_mac);
@@ -421,7 +435,7 @@ sensor.setResolution(12);
 
 void loop() {
 
-// читстим переменную
+// чистим переменную
 memset(UDP_MSG, 0, 254);
 
 // отправляем запрос на измерение температуры
@@ -470,13 +484,18 @@ Udp.endPacket();
 
 Serial.println("Пакет в теории отправлен ...");
 
+analogWrite(LED_BUILTIN, 128);
 delay(60000);  // Даем отправить UDP пакет.
 
 Serial.println("Засыпаем .....");
 WiFidisconnect();
+digitalWrite(LED_BUILTIN, HIGH);  //  Гасим светодиод во время сна для экономии энергии
+
 delay((Sleep_TIME*1000) - 60000);  // Задержка для сна
 Serial.println("Проснулись!");
-WiFireconnect();
+if(!WiFireconnect()) ESP.reset();  // Если после сна не подключились перегружаемся
+
+//WiFireconnect();
 
 
 }
