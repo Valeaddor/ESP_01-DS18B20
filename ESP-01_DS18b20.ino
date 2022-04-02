@@ -6,9 +6,10 @@
 #include "CRC.h"
 #include <LittleFS.h>
 
+#define LED_BUILTIN 1
 #define UDP_CONFIG_PORT 58911
 #define UDP_CLIENT_PORT 58001
-#define PROG_VERSION "2.2"
+#define PROG_VERSION "2.3"
 
 char ssid[32] = "";
 char password[64] = "";
@@ -76,8 +77,8 @@ void Parse_Config(const char * c_line) {
     for (uint8_t pos=5; pos<=len; pos++) {
       ssid[pos-5] = c_line[pos];
     }
-    Serial.print("SET SSID=");
-    Serial.println(ssid);
+//    Serial.print("SET SSID=");
+//    Serial.println(ssid);
     return;
   }
 
@@ -85,7 +86,7 @@ void Parse_Config(const char * c_line) {
     for (uint8_t pos=5; pos<=len; pos++) {
       password[pos-5] = c_line[pos];
     }
-    Serial.println("SET PASSWORD=*****");
+//    Serial.println("SET PASSWORD=*****");
 //    Serial.println(password);
 //    Serial.println("*****");
     return;
@@ -95,8 +96,8 @@ void Parse_Config(const char * c_line) {
     for (uint8_t pos=10; pos<=len; pos++) {
       Server_IP[pos-10] = c_line[pos];
     }
-    Serial.print("SET SERVER IP=");
-    Serial.println(Server_IP);
+//    Serial.print("SET SERVER IP=");
+//    Serial.println(Server_IP);
     return;
   }
 
@@ -106,8 +107,8 @@ void Parse_Config(const char * c_line) {
       server_p[pos-12] = c_line[pos];
     }
     Server_Port = atoi(server_p);
-    Serial.print("SET SERVER PORT=");
-    Serial.println(Server_Port);
+//    Serial.print("SET SERVER PORT=");
+//    Serial.println(Server_Port);
     return;
   }
   
@@ -119,14 +120,14 @@ void SaveConfig() {   // записываем полученную конфиг�
   LittleFS.format();
 //  Serial.println("Mount LittleFS");
   if (!LittleFS.begin()) {
-    Serial.println("LittleFS mount failed");
+//    Serial.println("LittleFS mount failed");
     Error_mode = true;
     return;
   }
 
   File config_f = LittleFS.open(Config_File, "w");
   if (!config_f) {
-    Serial.println("Config file open failed! Error_mode!!!");
+//    Serial.println("Config file open failed! Error_mode!!!");
     Error_mode = true;
     return;
   }
@@ -158,7 +159,7 @@ void ReadConfig() {   // читаем сохраненную конфигура�
     
     File config_f = LittleFS.open(Config_File, "r");
        if (!config_f) {
-          Serial.println("Config file exists but can't opened!");
+//          Serial.println("Config file exists but can't opened!");
           Error_mode = true;
           return;
        } else {
@@ -188,8 +189,8 @@ void Device_Config() {
   ssid_ap[16] = esp_mac[10];
   ssid_ap[17] = esp_mac[11];
 
-  Serial.print("Start AP with SSID: ");
-  Serial.println(ssid_ap);
+//  Serial.print("Start AP with SSID: ");
+//  Serial.println(ssid_ap);
 
   WiFi.softAP(ssid_ap);
 
@@ -202,22 +203,31 @@ void Device_Config() {
         // if there's data available, read a packet
         int packetSize = Udp.parsePacket();
         if (packetSize) {
-          Serial.print("Received packet of size ");
-          Serial.println(packetSize);
-          Serial.print("From ");
+//          Serial.print("Received packet of size ");
+//          Serial.println(packetSize);
+//          Serial.print("From ");
           remoteIp = Udp.remoteIP();
-          Serial.println(remoteIp);
+//          Serial.println(remoteIp);
 
           // read the packet into packetBufffer
           uint16_t len = Udp.read(packetBuffer, 2048);
           if (len > 0) {
             packetBuffer[len] = 0;
           }
-          Serial.print("Contents: ");
-          Serial.println(packetBuffer);
+//          Serial.print("Contents: ");
+//          Serial.println(packetBuffer);
 
           // send a reply, to the IP address and port that sent us the packet we received
           Udp.beginPacket(remoteIp, UDP_CLIENT_PORT);
+
+          if(len <= 4) {
+            if(strncmp(packetBuffer,"AT",2) == 0) {
+              Udp.write(ReplyOK);
+              Udp.endPacket();
+              delay(100);
+              continue;
+            }
+          }
 
           if(strncmp(packetBuffer,"ATSSID=",7) == 0) {
             for (uint8_t pos=7; pos<=len; pos++) {
@@ -225,8 +235,8 @@ void Device_Config() {
             }
             Udp.write(ReplyOK);
             Udp.endPacket();
-            Serial.print("SET SSID=");
-            Serial.println(ssid);
+//            Serial.print("SET SSID=");
+//            Serial.println(ssid);
             delay(100);
             continue; 
           }
@@ -237,8 +247,8 @@ void Device_Config() {
             }
             Udp.write(ReplyOK);
             Udp.endPacket();
-            Serial.print("SET PASSWORD=");
-            Serial.println(password);
+//            Serial.print("SET PASSWORD=");
+//            Serial.println(password);
             delay(100);
             continue; 
           }
@@ -249,8 +259,8 @@ void Device_Config() {
             }
             Udp.write(ReplyOK);
             Udp.endPacket();
-            Serial.print("SET SERVER IP=");
-            Serial.println(Server_IP);
+//            Serial.print("SET SERVER IP=");
+//            Serial.println(Server_IP);
             delay(100);
             continue; 
           }
@@ -263,14 +273,14 @@ void Device_Config() {
             Server_Port = atoi(server_p);
             Udp.write(ReplyOK);
             Udp.endPacket();
-            Serial.print("SET SERVER PORT=");
-            Serial.println(Server_Port);
+//            Serial.print("SET SERVER PORT=");
+//            Serial.println(Server_Port);
             delay(100);
             continue; 
           }
 
           if(strncmp(packetBuffer,"ATRST!",6) == 0) {
-            Serial.println("Configuration complete, going to reboot ESP!");
+//            Serial.println("Configuration complete, going to reboot ESP!");
             Udp.write(ReplyOK);
             Udp.endPacket();
             delay(1000);
@@ -298,7 +308,7 @@ void Device_Config() {
 void SetupSavedWiFi() {
 
   if (!LittleFS.begin()) {
-    Serial.println("Failed to mount file system!");
+//    Serial.println("Failed to mount file system!");
     Error_mode = true;
     return;
   }
@@ -307,7 +317,7 @@ void SetupSavedWiFi() {
   if (LittleFS.exists(Config_File)) {
     ReadConfig();
   } else {
-    Serial.println("No config file. First run? Go to config AP mode.");
+//    Serial.println("No config file. First run? Go to config AP mode.");
     Device_Config();
   }
  
@@ -334,11 +344,12 @@ boolean WiFireconnect() {
   timeout = 0;
   while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(LED_BUILTIN, LOW);  // Быстро мигаем светодиодом оповещая что мы соединяемся
-    delay(500);
+    delay(250);
     digitalWrite(LED_BUILTIN, HIGH);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
+    delay(250);
 
     if(timeout > 1200) {     // в течении 10 минут не смогли подключиться к WIFI сети, ошибка конфигурации?
-      Serial.println("Failed reconnect to WiFi network. BUG?");
+//      Serial.println("Failed reconnect to WiFi network. BUG?");
       return false;
     }
     timeout++;
@@ -353,62 +364,63 @@ void WiFiconnect() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
+//  Serial.println();
+//  Serial.print("Connecting to ");
+//  Serial.println(ssid);
+ 
+
+
   timeout = 0;
   while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(LED_BUILTIN, LOW);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
-    delay(500);
+//    Serial.print(".");
+    delay(250);
     digitalWrite(LED_BUILTIN, HIGH);  //  Быстро мигаем светодиодом оповещая что мы соединяемся
+    delay(250);
 
     if(timeout > 600) {     // в течении 5 минут не смогли подключиться к WIFI сети, ошибка конфигурации?
-      Serial.println("Failed to connect to WiFi network. Going to Config Mode.");
+//      Serial.println("Failed to connect to WiFi network. Going to Config Mode.");
       Device_Config();
     }
     timeout++;
   }
   digitalWrite(LED_BUILTIN, LOW);  // ...
+//  Serial.println();
+//  Serial.println("WiFi connected");
 }
 
 void setup() {
 
 pinMode(LED_BUILTIN, OUTPUT);
 
-Serial.begin(115200);
+//Serial.begin(115200);
 //delay(5000);
 
   digitalWrite(LED_BUILTIN, LOW);  // Зажигаем
   delay(1000);
-  Serial.println("3");
-  analogWrite(LED_BUILTIN, 64);
-  delay(1000);
-  Serial.println("2");
   analogWrite(LED_BUILTIN, 128);
   delay(1000);
-  Serial.println("1");
   analogWrite(LED_BUILTIN, 192);
   delay(1000);
   digitalWrite(LED_BUILTIN, HIGH);  // Гасим
+  delay(1000);  
 
 // Получаем свой MAC address
 WiFi.macAddress(local_mac);
 sprintf(esp_mac, "%02X%02X%02X%02X%02X%02X", local_mac[0], local_mac[1], local_mac[2], local_mac[3], local_mac[4], local_mac[5]);
-Serial.print("Мой MAC: ");
-Serial.println(esp_mac);
+//Serial.print("Мой MAC: ");
+//Serial.println(esp_mac);
 
 SetupSavedWiFi();  
 
 if(Error_mode) Error_Mode();
 
 // Connect to WiFi network
-Serial.println();
-Serial.print("Connecting to ");
-Serial.println(ssid);
 //Serial.print("Password: ");
 //Serial.println(password);
 
 WiFiconnect();
 
-Serial.println();
-Serial.println("WiFi connected");
 
 // Получаем свой IP address
 local_ip = WiFi.localIP();
@@ -422,10 +434,10 @@ sprintf(esp_ip, "%d.%d.%d.%d", local_ip[0], local_ip[1], local_ip[2], local_ip[3
 //local_ip = WiFi.subnetMask();
 //sprintf(esp_mask, "%d.%d.%d.%d", local_ip[0], local_ip[1], local_ip[2], local_ip[3]);
 
-Serial.println(esp_ip);
+//Serial.println(esp_ip);
 //Serial.println(esp_gw);
 //Serial.println(esp_mask);
-Serial.println(esp_mac);
+//Serial.println(esp_mac);
 
 // начинаем работу с датчиком
 sensor.begin();
@@ -444,8 +456,8 @@ sensor.requestTemperatures();
 // считываем данные из регистра датчика
 c_temp = sensor.getTempCByIndex(0);
   
-Serial.print("Температура = ");
-Serial.println(c_temp);
+//Serial.print("Температура = ");
+//Serial.println(c_temp);
 
 //Serial.println(esp_ip);
 //Serial.println(esp_mac);
@@ -471,28 +483,28 @@ if(WiFi.status() != WL_CONNECTED) {
   if(!WiFireconnect()) ESP.reset();
 }
 
-Serial.printf("Посылаем на сервер: %s:%d сообщение:", Server_IP, Server_Port);
-Serial.println();
+//Serial.printf("Посылаем на сервер: %s:%d сообщение:", Server_IP, Server_Port);
+//Serial.println();
 
 encode_base64((unsigned char*)UDP_MSG, strlen(UDP_MSG), (unsigned char*)b64msg);
-Serial.println(b64msg);
+//Serial.println(b64msg);
 
 Udp.beginPacket(Server_IP, Server_Port);
 
 Udp.write(b64msg);
 Udp.endPacket();
 
-Serial.println("Пакет в теории отправлен ...");
+//Serial.println("Пакет в теории отправлен ...");
 
-analogWrite(LED_BUILTIN, 128);
+analogWrite(LED_BUILTIN, 200);
 delay(60000);  // Даем отправить UDP пакет.
 
-Serial.println("Засыпаем .....");
+//Serial.println("Засыпаем .....");
 WiFidisconnect();
 digitalWrite(LED_BUILTIN, HIGH);  //  Гасим светодиод во время сна для экономии энергии
 
 delay((Sleep_TIME*1000) - 60000);  // Задержка для сна
-Serial.println("Проснулись!");
+//Serial.println("Проснулись!");
 if(!WiFireconnect()) ESP.reset();  // Если после сна не подключились перегружаемся
 
 //WiFireconnect();
