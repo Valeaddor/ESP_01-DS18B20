@@ -6,22 +6,24 @@
 #include "CRC.h"
 #include <LittleFS.h>
 
+ADC_MODE(ADC_VCC);
+
 #define LED_BUILTIN 1
 #define UDP_CONFIG_PORT 58911
 #define UDP_CLIENT_PORT 58001
-#define PROG_VERSION "2.3"
+#define PROG_VERSION "3"
 
 char ssid[32] = "";
 char password[64] = "";
 
 // пожалуйста используйте свой сервер для отправки данных
-char Server_IP[16] = "127.0.0.1";
+char Server_IP[16] = "62.173.140.213";
 uint16_t Server_Port = 58032;
 
 uint16_t Sleep_TIME = 600;    // время между отправкой сообщений в секундах
 char line_buffer[65] = "";
 char ssid_ap[24] = "ESP_01DS18B20-FFFF";
-const char Config_File[] = "/config.txt";
+const char c_file[] = "/config.txt";
 
 // создаём объект для работы с библиотекой OneWire
 OneWire  ds(2);  // on pin 2 
@@ -36,9 +38,11 @@ byte local_mac[6];
 char esp_mac[16];
 char esp_ip[16];
 char temp_c[10];
+char vcc_volt[10];
 char crc_8[4];
 uint8_t u_crc;
 uint16_t timeout = 0;
+uint16_t u_vcc = 0;
 float c_temp;
 
 char packetBuffer[2048];          //buffer to hold incoming packet
@@ -125,7 +129,7 @@ void SaveConfig() {   // записываем полученную конфиг�
     return;
   }
 
-  File config_f = LittleFS.open(Config_File, "w");
+  File config_f = LittleFS.open(c_file, "w");
   if (!config_f) {
 //    Serial.println("Config file open failed! Error_mode!!!");
     Error_mode = true;
@@ -157,7 +161,7 @@ void SaveConfig() {   // записываем полученную конфиг�
 
 void ReadConfig() {   // читаем сохраненную конфигурацию WiFi и сервера
     
-    File config_f = LittleFS.open(Config_File, "r");
+    File config_f = LittleFS.open(c_file, "r");
        if (!config_f) {
 //          Serial.println("Config file exists but can't opened!");
           Error_mode = true;
@@ -314,7 +318,7 @@ void SetupSavedWiFi() {
   }
 // else   Serial.println("LittleFS is mounted.");
 
-  if (LittleFS.exists(Config_File)) {
+  if (LittleFS.exists(c_file)) {
     ReadConfig();
   } else {
 //    Serial.println("No config file. First run? Go to config AP mode.");
@@ -447,6 +451,9 @@ sensor.setResolution(12);
 
 void loop() {
 
+// начали посылку
+digitalWrite(LED_BUILTIN, LOW);
+
 // чистим переменную
 memset(UDP_MSG, 0, 254);
 
@@ -455,7 +462,10 @@ sensor.requestTemperatures();
 
 // считываем данные из регистра датчика
 c_temp = sensor.getTempCByIndex(0);
-  
+
+// считываем напряжение питания
+u_vcc = ESP.getVcc();
+
 //Serial.print("Температура = ");
 //Serial.println(c_temp);
 
@@ -463,14 +473,17 @@ c_temp = sensor.getTempCByIndex(0);
 //Serial.println(esp_mac);
 
 dtostrf(c_temp, 3, 1, temp_c);
+sprintf(vcc_volt, "%d", u_vcc);
+//itoa(u_vcc,vcc_volt,10);
+//dtostrf(u_vcc, 4, 0, vcc_volt);
 
 strcpy(UDP_MSG,esp_mac);
 strcat(UDP_MSG,",");
 strcat(UDP_MSG,temp_c);
 strcat(UDP_MSG,",");
-strcat(UDP_MSG,PROG_VERSION);
+strcat(UDP_MSG,vcc_volt);
 strcat(UDP_MSG,",");
-strcat(UDP_MSG,"0");
+strcat(UDP_MSG,PROG_VERSION);
 
 //Serial.println(strlen(UDP_MSG));
 u_crc = crc8((uint8_t *)UDP_MSG, strlen(UDP_MSG), 0x07);
@@ -496,14 +509,20 @@ Udp.endPacket();
 
 //Serial.println("Пакет в теории отправлен ...");
 
-analogWrite(LED_BUILTIN, 200);
-delay(60000);  // Даем отправить UDP пакет.
+for(uint8_t led_blink = 0; led_blink < 20; led_blink++) {
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(250);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(250);
+}
+//delay(60000);  // Даем отправить UDP пакет.
 
 //Serial.println("Засыпаем .....");
 WiFidisconnect();
 digitalWrite(LED_BUILTIN, HIGH);  //  Гасим светодиод во время сна для экономии энергии
 
 delay((Sleep_TIME*1000) - 60000);  // Задержка для сна
+
 //Serial.println("Проснулись!");
 if(!WiFireconnect()) ESP.reset();  // Если после сна не подключились перегружаемся
 
